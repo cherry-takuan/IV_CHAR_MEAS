@@ -29,6 +29,8 @@ csv_file = Path("measurement.csv")
 @app.post("/start")
 async def start():
     global running, data_buffer
+    if running:
+        raise HTTPException(status_code=400, detail="測定中です。")
     if x_start > x_end:
         raise HTTPException(status_code=400, detail="開始値は終了値以下でなければなりません。")
     data_buffer.clear()
@@ -45,6 +47,9 @@ async def stop():
 
 @app.post("/set_step/{value}")
 async def set_step(value: float):
+    global running
+    if running:
+        raise HTTPException(status_code=400, detail="測定中です。")
     global step
     if value <= 0:
         raise HTTPException(status_code=400, detail="ステップは正の値でなければなりません。")
@@ -53,7 +58,9 @@ async def set_step(value: float):
 
 @app.post("/set_range/{start}/{end}")
 async def set_range(start: float, end: float):
-    global x_start, x_end
+    global x_start, x_end, running
+    if running:
+        raise HTTPException(status_code=400, detail="測定中です。")
     if start > end:
         raise HTTPException(status_code=400, detail="開始値は終了値以下でなければなりません。")
     x_start = start
@@ -62,13 +69,17 @@ async def set_range(start: float, end: float):
 
 @app.post("/clear_data")
 async def clear_data():
-    global data_buffer
+    global data_buffer, running
+    if running:
+        raise HTTPException(status_code=400, detail="測定中です。")
     data_buffer.clear()
     return {"status": "cleared"}
 
 @app.post("/set_save_mode/{mode}")
 async def set_save_mode(mode: str):
-    global save_mode
+    global save_mode, running
+    if running:
+        raise HTTPException(status_code=400, detail="測定中です。")
     if mode not in ["batch", "realtime"]:
         raise HTTPException(status_code=400, detail="保存モードは batch または realtime です。")
     save_mode = mode
@@ -123,11 +134,10 @@ async def websocket_endpoint(ws: WebSocket):
                 await asyncio.sleep(0.5)
 
             # 計測終了通知
-            if running:
-                running = False
-                if save_mode == "batch" and data_buffer:
-                    save_csv(data_buffer)
-                await ws.send_json({"status": "done"})
+            running = False
+            if save_mode == "batch" and data_buffer:
+                save_csv(data_buffer)
+            await ws.send_json({"status": "done"})
         else:
             await asyncio.sleep(0.1)
 

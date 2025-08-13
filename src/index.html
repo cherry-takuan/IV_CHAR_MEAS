@@ -29,17 +29,17 @@
 </head>
 <body>
 <h1>サイン波表示</h1>
-<button onclick="start()">開始</button>
-<button onclick="stop()">停止</button>
-<button onclick="clearData()">クリア</button>
+<button id="start_btn" onclick="start()">開始</button>
+<button id="stop_btn" onclick="stop()">停止</button>
+<button id="clear_btn" onclick="clearData()">クリア</button>
 <br>
 <label>開始値: <input type="number" id="x_start" value="0"></label>
 <label>終了値: <input type="number" id="x_end" value="10"></label>
-<button onclick="setRange()">範囲設定</button>
+<button id="set_range" onclick="setRange()">範囲設定</button>
 <br>
 <label>ステップ:
     <input type="number" id="step" value="0.1" step="0.1">
-    <button onclick="setStep()">送信</button>
+    <button id="set_step" onclick="setStep()">送信</button>
 </label>
 <br>
 <label>保存モード:
@@ -76,9 +76,11 @@ function connectWS() {
         if (msg.status === "done") {
             document.getElementById("statusMsg").innerText = "測定終了";
             document.getElementById("progressFill").style.width = "100%";
+            setUILocked(false);
             return;
         }
         if (msg.status === "running") {
+            setUILocked(true);
             document.getElementById("statusMsg").innerText = "";
             xData.push(msg.x);
             yData.push(msg.y);
@@ -131,6 +133,14 @@ function clearData() {
 function setSaveMode() {
     const mode = document.getElementById("saveMode").value;
     fetch(`http://127.0.0.1:8000/set_save_mode/${mode}`, {method: "POST"});
+}
+
+function setUILocked(lock) {
+  document.getElementById("set_range").disabled = lock;
+  document.getElementById("start_btn").disabled = lock;
+  document.getElementById("stop_btn").disabled  = !lock;
+  document.getElementById("clear_btn").disabled = lock;
+  document.getElementById("set_step").disabled  = lock;
 }
 
 connectWS();
