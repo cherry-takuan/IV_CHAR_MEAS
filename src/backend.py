@@ -269,7 +269,7 @@ async def websocket_endpoint(ws: WebSocket):
                     }
                 })
                 x += step
-                #await asyncio.sleep(0.05)
+                await asyncio.sleep(0.05)
             running = False
             if ser is not None:
                 ser.write(":OUTP:STATE 0\n".encode('ascii'))

@@ -1,88 +1,162 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <meta charset="utf-8">
-    <title>keithley 2400 I-V CHAR MEAS</title>
-    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-    <style>
-        #progressBar {
-            width: 600px;
-            height: 20px;
-            border: 1px solid #000;
-            background-color: #eee;
-            margin: 5px 0;
-        }
-        #progressFill {
-            height: 100%;
-            width: 0%;
-            background-color: #4caf50;
-        }
-        table {
-            border-collapse: collapse;
-            margin-top: 10px;
-        }
-        table, th, td {
-            border: 1px solid black;
-            padding: 4px;
-        }
-    </style>
+<meta charset="utf-8">
+<title>Keithley 2400 I-V CHAR MEAS</title>
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<style>
+    body {
+        background-color: #1e1e1e;
+        color: #eee;
+        font-family: Arial, sans-serif;
+    }
+    h1, h3 {
+        color: #fff;
+    }
+    button {
+        background-color: #333;
+        color: #fff;
+        border: none;
+        padding: 5px 10px;
+        margin: 3px;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+    button:hover {
+        background-color: #555;
+    }
+    input, select {
+        background-color: #2a2a2a;
+        color: #fff;
+        border: 1px solid #555;
+        border-radius: 3px;
+        padding: 3px;
+    }
+    fieldset {
+        border: 1px solid #555;
+        padding: 10px;
+        margin-bottom: 10px;
+        border-radius: 6px;
+        box-shadow: 1px 1px 5px rgba(255,255,255,0.05);
+    }
+    legend {
+        font-weight: bold;
+        color: #fff;
+    }
+    .group-container {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+    .group-container fieldset {
+        flex: 1;
+        min-width: 250px;
+    }
+    #progressBar {
+        width: 100%;
+        max-width: 600px;
+        height: 20px;
+        border: 1px solid #555;
+        background-color: #333;
+        margin: 5px 0;
+    }
+    #progressFill {
+        height: 100%;
+        width: 0%;
+        background-color: #4caf50;
+    }
+    table {
+        border-collapse: collapse;
+        margin-top: 10px;
+    }
+    table, th, td {
+        border: 1px solid #555;
+        padding: 4px;
+    }
+    #chart {
+        width: 100%;
+        height: 60vh; /* ウィンドウ高の60% */
+    }
+</style>
 </head>
 <body>
-<h1>keithley 2400 I-V CHAR MEAS</h1>
-<p>copyright 2025 cherry-tech</p>
-<button id="init_btn" onclick="init()">接続</button>
-<button id="start_btn" onclick="start()">開始</button>
-<button id="stop_btn" onclick="stop()">停止</button>
-<button id="clear_btn" onclick="clearData()">クリア</button>
-<br>
-<label>開始値: <input type="number" id="x_start" value="0"></label>
-<label>終了値: <input type="number" id="x_end" value="10"></label>
-<button id="set_range" onclick="setRange()">範囲設定</button>
-<br>
-<label>ステップ:
-    <input type="number" id="step" value="0.1" step="0.1">
-    <button id="set_step" onclick="setStep()">送信</button>
-</label>
-<br>
-<label>保存モード:
-    <select id="saveMode" onchange="setSaveMode()">
-        <option value="batch">一括保存</option>
-        <option value="realtime">逐次保存</option>
-    </select>
-</label>
-<br>
-<!-- ★追加: 2-wire / 4-wire切り替え -->
-<label>配線モード:
-    <select id="wireMode" onchange="setWireMode()">
-        <option value="2wire">2-wire</option>
-        <option value="4wire">4-wire</option>
-    </select>
-</label>
+<h1><i class="fa-solid fa-wave-square"></i> Keithley 2400 I-V CHAR MEAS</h1>
+<p>© 2025 cherry-tech</p>
 
-<br>
-<label>電圧制限値 [V]:
-    <input type="number" id="voltageLimit" step="0.1">
-    <button id="voltageLimit_btn" onclick="setVoltageLimit()">送信</button>
-</label>
-<br>
-<label>電流制限値 [A]:
-    <input type="number" id="currentLimit" step="0.0001">
-    <button id="currentLimit_btn" onclick="setCurrentLimit()">送信</button>
-</label>
-<br>
-<label>平均回数:
-    <select id="averageCount" onchange="setAverageCount()">
-        <option value="1">1</option>
-        <option value="3">3</option>
-        <option value="5">5</option>
-        <option value="10">10</option>
-    </select>
-</label>
+<!-- 操作ボタン -->
+<button id="init_btn" onclick="init()"><i class="fa-solid fa-plug"></i> 接続</button>
+<button id="start_btn" onclick="start()"><i class="fa-solid fa-play"></i> 開始</button>
+<button id="stop_btn" onclick="stop()"><i class="fa-solid fa-stop"></i> 停止</button>
+<button id="clear_btn" onclick="clearData()"><i class="fa-solid fa-trash"></i> クリア</button>
 
+<!-- グループ化設定 -->
+<div class="group-container">
+    <!-- スイープ設定 -->
+    <fieldset>
+        <legend><i class="fa-solid fa-arrows-left-right"></i> スイープ設定</legend>
+        <label>開始値: <input type="number" id="x_start" value="0"></label>
+        <label>終了値: <input type="number" id="x_end" value="10"></label>
+        <button id="set_range" onclick="setRange()">範囲設定</button>
+        <br>
+        <label>ステップ:
+            <input type="number" id="step" value="0.1" step="0.1">
+            <button id="set_step" onclick="setStep()">送信</button>
+        </label>
+    </fieldset>
+
+    <!-- 制限設定 -->
+    <fieldset>
+        <legend><i class="fa-solid fa-gauge-high"></i> 制限設定</legend>
+        <label>電圧制限値 [V]:
+            <input type="number" id="voltageLimit" step="0.1">
+            <button id="voltageLimit_btn" onclick="setVoltageLimit()">送信</button>
+        </label>
+        <br>
+        <label>電流制限値 [A]:
+            <input type="number" id="currentLimit" step="0.0001">
+            <button id="currentLimit_btn" onclick="setCurrentLimit()">送信</button>
+        </label>
+        <br>
+        <label>制限ライン表示閾値 [%]:
+            <input type="number" id="limitThreshold" value="80" step="1" min="0" max="100">
+        </label>
+    </fieldset>
+
+    <!-- 計測モード設定 -->
+    <fieldset>
+        <legend><i class="fa-solid fa-sliders"></i> 計測モード設定</legend>
+        <label>配線モード:
+            <select id="wireMode" onchange="setWireMode()">
+                <option value="2wire">2-wire</option>
+                <option value="4wire">4-wire</option>
+            </select>
+        </label>
+        <br>
+        <label>平均回数:
+            <select id="averageCount" onchange="setAverageCount()">
+                <option value="1">1</option>
+                <option value="3">3</option>
+                <option value="5">5</option>
+                <option value="10">10</option>
+            </select>
+        </label>
+        <br>
+        <label>保存モード:
+            <select id="saveMode" onchange="setSaveMode()">
+                <option value="batch">一括保存</option>
+                <option value="realtime">逐次保存</option>
+            </select>
+        </label>
+    </fieldset>
+</div>
+
+<!-- プログレスバー -->
 <div id="progressBar"><div id="progressFill"></div></div>
 <div id="statusMsg"></div>
 
-<div id="chart" style="width:600px;height:400px;"></div>
+<!-- グラフ -->
+<div id="chart"></div>
 
 <h3>測定条件</h3>
 <table id="conditionsTable">
@@ -93,6 +167,10 @@
 <script>
 let ws;
 let xData = [], yData = [];
+let voltageLimitValue = null;
+let currentLimitValue = null;
+let showVoltageLimit = false;
+let showCurrentLimit = false;
 
 function connectWS() {
     ws = new WebSocket("ws://127.0.0.1:8000/ws");
@@ -103,28 +181,13 @@ function connectWS() {
     };
     ws.onmessage = (event) => {
         const msg = JSON.parse(event.data);
-        if (msg.status === "standby") {
-            if(len(msg.idt) > 0){
-                setUILocked_init(false);
-            }
-            document.getElementById("statusMsg").innerText = msg.idn;
-            return;
-        }
-        if (msg.status === "done") {
-            document.getElementById("statusMsg").innerText = "測定終了";
-            document.getElementById("progressFill").style.width = "100%";
-            setUILocked_run(false);
-            return;
-        }
+
         if (msg.status === "running") {
             setUILocked_run(true);
-            document.getElementById("statusMsg").innerText = "";
-            xData.push(msg.x);
-            yData.push(msg.y);
-
-            Plotly.extendTraces('chart', {y: [[msg.y]], x: [[msg.x]]}, [0]);
+            xData.push(parseFloat(msg.x));
+            yData.push(parseFloat(msg.y));
+            drawChart();
             document.getElementById("progressFill").style.width = (msg.progress * 100) + "%";
-
             const cond = msg.conditions;
             document.getElementById("condStart").innerText = cond.x_start;
             document.getElementById("condEnd").innerText = cond.x_end;
@@ -132,98 +195,120 @@ function connectWS() {
             document.getElementById("condSave").innerText = cond.save_mode;
             document.getElementById("condWire").innerText = cond.wire_mode;
         }
+
+        if (msg.status === "done") {
+            document.getElementById("statusMsg").innerText = "測定終了";
+            document.getElementById("progressFill").style.width = "100%";
+            setUILocked_run(false);
+
+            const thresholdRatio = parseFloat(document.getElementById("limitThreshold").value) / 100;
+
+            if (voltageLimitValue !== null) {
+                showVoltageLimit = xData.some(v => v >= voltageLimitValue * thresholdRatio);
+            }
+            if (currentLimitValue !== null) {
+                showCurrentLimit = yData.some(v => v >= currentLimitValue * thresholdRatio);
+            }
+            drawChart();
+        }
     };
 }
 
-function init() {
-    fetch("http://127.0.0.1:8000/init", {method: "POST"});
+function drawChart() {
+    const traces = [
+        { x: xData, y: yData, mode: 'lines', name: 'I-V', line: {color: '#00bfff'} }
+    ];
+    if (showVoltageLimit && voltageLimitValue !== null) {
+        traces.push({
+            x: [voltageLimitValue, voltageLimitValue],
+            y: [Math.min(...yData, 0), Math.max(...yData, 1)],
+            mode: 'lines',
+            line: { color: 'red', dash: 'dash' },
+            name: '電圧制限'
+        });
+    }
+    if (showCurrentLimit && currentLimitValue !== null) {
+        traces.push({
+            x: [Math.min(...xData, 0), Math.max(...xData, 1)],
+            y: [currentLimitValue, currentLimitValue],
+            mode: 'lines',
+            line: { color: 'red', dash: 'dot' },
+            name: '電流制限'
+        });
+    }
+    Plotly.newPlot('chart', traces, {
+        paper_bgcolor: '#1e1e1e',
+        plot_bgcolor: '#1e1e1e',
+        font: {color: '#fff'},
+        margin: { t: 40, l: 50, r: 20, b: 50 }
+    }, {responsive: true});
 }
+
+// 設定系関数
+function init() { fetch("http://127.0.0.1:8000/init", {method: "POST"}); }
 function start() {
-    Plotly.newPlot('chart', [{x: [], y: [], mode: 'lines'}]);
     xData = []; yData = [];
+    showVoltageLimit = false;
+    showCurrentLimit = false;
+    voltageLimitValue = parseFloat(document.getElementById("voltageLimit").value) || null;
+    currentLimitValue = parseFloat(document.getElementById("currentLimit").value) || null;
     document.getElementById("progressFill").style.width = "0%";
-    fetch("http://127.0.0.1:8000/start", {method: "POST"});
+    fetch("http://127.0.0.1:8000/start", { method: "POST" });
+    drawChart();
 }
-
-function stop() {
-    fetch("http://127.0.0.1:8000/stop", {method: "POST"});
+function stop() { fetch("http://127.0.0.1:8000/stop", {method: "POST"}); }
+function clearData() {
+    xData = []; yData = [];
+    fetch("http://127.0.0.1:8000/clear_data", {method: "POST"});
+    drawChart();
+    document.getElementById("progressFill").style.width = "0%";
+    document.getElementById("statusMsg").innerText = "";
 }
-
 function setStep() {
     const val = document.getElementById("step").value;
     fetch(`http://127.0.0.1:8000/set_step/${val}`, {method: "POST"});
 }
-
 function setRange() {
     const startVal = document.getElementById("x_start").value;
     const endVal = document.getElementById("x_end").value;
     fetch(`http://127.0.0.1:8000/set_range/${startVal}/${endVal}`, {method: "POST"});
 }
-
-function clearData() {
-    xData = [];
-    yData = [];
-    fetch("http://127.0.0.1:8000/clear_data", {method: "POST"});
-    Plotly.newPlot('chart', [{x: [], y: [], mode: 'lines'}]);
-    document.getElementById("progressFill").style.width = "0%";
-    document.getElementById("statusMsg").innerText = "";
-}
-
 function setSaveMode() {
     const mode = document.getElementById("saveMode").value;
     fetch(`http://127.0.0.1:8000/set_save_mode/${mode}`, {method: "POST"});
 }
-
-// ★追加: 配線モード変更
 function setWireMode() {
     const mode = document.getElementById("wireMode").value;
     fetch(`http://127.0.0.1:8000/set_wire_mode/${mode}`, {method: "POST"});
 }
 function setVoltageLimit() {
-    const val = document.getElementById("voltageLimit").value;
+    const val = parseFloat(document.getElementById("voltageLimit").value);
+    voltageLimitValue = val;
+    showVoltageLimit = false;
     fetch(`http://127.0.0.1:8000/set_voltage_limit/${val}`, {method: "POST"});
 }
-
 function setCurrentLimit() {
-    const val = document.getElementById("currentLimit").value;
+    const val = parseFloat(document.getElementById("currentLimit").value);
+    currentLimitValue = val;
+    showCurrentLimit = false;
     fetch(`http://127.0.0.1:8000/set_current_limit/${val}`, {method: "POST"});
 }
-
 function setAverageCount() {
     const count = document.getElementById("averageCount").value;
     fetch(`http://127.0.0.1:8000/set_average_count/${count}`, {method: "POST"});
 }
-
 function setUILocked_run(lock) {
     document.getElementById("init_btn").disabled = lock;
     document.getElementById("start_btn").disabled = lock;
     document.getElementById("stop_btn").disabled  = !lock;
     document.getElementById("clear_btn").disabled = lock;
-
     document.getElementById("set_range").disabled = lock;
     document.getElementById("set_step").disabled  = lock;
-
     document.getElementById("wireMode").disabled  = lock;
     document.getElementById("voltageLimit_btn").disabled  = lock;
     document.getElementById("currentLimit_btn").disabled  = lock;
     document.getElementById("averageCount").disabled  = lock;
 }
-
-function setUILocked_init(lock) {
-    document.getElementById("init_btn").disabled =  !lock;
-    document.getElementById("start_btn").disabled = lock;
-    document.getElementById("stop_btn").disabled  = lock;
-    document.getElementById("clear_btn").disabled = lock;
-
-    document.getElementById("set_range").disabled = lock;
-    document.getElementById("set_step").disabled  = lock;
-
-    document.getElementById("wireMode").disabled  = lock;
-    document.getElementById("voltageLimit_btn").disabled  = lock;
-    document.getElementById("currentLimit_btn").disabled  = lock;
-    document.getElementById("averageCount").disabled  = lock;
-}
-//setUILocked_init(true);
 connectWS();
 </script>
 </body>
