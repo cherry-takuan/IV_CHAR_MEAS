@@ -7,6 +7,9 @@ import uvicorn
 import csv
 from pathlib import Path
 
+import serial
+from serial.tools import list_ports
+
 app = FastAPI()
 
 # CORS許可
@@ -25,6 +28,55 @@ x_end = 10.0
 save_mode = "batch"  # "batch" or "realtime"
 data_buffer = []
 csv_file = Path("measurement.csv")
+ser = None
+
+@app.post("/init")
+async def init_2400():
+    global running, ser
+    if running:
+        raise HTTPException(status_code=400, detail="測定中です。")
+    myser = None
+    myser = serial.Serial()
+    myser.baudrate = 9600
+    myser.timeout = 1       # タイムアウトの時間
+    ports = list_ports.comports()    # ポートデータを取得
+    devices = [info.device for info in ports]
+    if len(devices) == 0:
+        # シリアル通信できるデバイスが見つからなかった場合
+        print("Error: Port not found")
+        return None
+    else:
+        myser.port = devices[0]
+    try:
+        myser.open()
+        print("serial open")
+    except:
+        print("Error：The port could not be opened.")
+        exit(1)
+    if myser is None:
+        raise HTTPException(status_code=400, detail="シリアルポートが初期化されていません。")
+    ser = myser
+    ser.reset_input_buffer()
+    ser.write("*IDN?\n".encode('ascii'))
+    await asyncio.sleep(0.05)
+    idn = ser.readline().strip().decode('UTF-8')
+    print(idn)
+    ser.write("*RST\n".encode('ascii'))
+    await asyncio.sleep(0.05)
+
+    ser.write(":SOUR:FUNC:MODE VOLT\n".encode('ascii'))
+    await asyncio.sleep(0.05)
+
+    ser.write(":SYST:RSEN OFF\n".encode('ascii'))
+    await asyncio.sleep(0.05)
+
+    ser.write(":SOUR:VOLT:PROT 20\n".encode('ascii'))
+    await asyncio.sleep(0.05)
+    ser.write(":SENS:VOLT:PROT 20\n".encode('ascii'))
+    await asyncio.sleep(0.05)
+    ser.write(":SENS:CURR:PROT 10e-3\n".encode('ascii'))
+    await asyncio.sleep(0.05)
+    return {"idn": idn}
 
 @app.post("/start")
 async def start():
@@ -47,10 +99,9 @@ async def stop():
 
 @app.post("/set_step/{value}")
 async def set_step(value: float):
-    global running
+    global running, step
     if running:
         raise HTTPException(status_code=400, detail="測定中です。")
-    global step
     if value <= 0:
         raise HTTPException(status_code=400, detail="ステップは正の値でなければなりません。")
     step = value
@@ -96,19 +147,37 @@ def save_csv(data_list):
 
 @app.websocket("/ws")
 async def websocket_endpoint(ws: WebSocket):
-    global running, step, x_start, x_end, save_mode, data_buffer  # ここでglobal宣言
+    global running, step, x_start, x_end, save_mode, data_buffer, ser
     await ws.accept()
+    
     while True:
         if running:
+            if ser is None:
+                await ws.send_json({"status": "error", "message": "シリアルポートが初期化されていません。"})
+                running = False
+                continue
+                
             total_steps = int((x_end - x_start) / step) + 1
             x = x_start
             for i in range(total_steps):
                 if not running:
                     break
                 timestamp = datetime.now().isoformat()
-                y = math.sin(x)
-                xs = f"{x:e}"
-                ys = f"{y:e}"
+                #y = math.sin(x)
+                command = ":SOUR:VOLT "+str(x)+"\n"
+                ser.write(command.encode('ascii'))
+                await asyncio.sleep(0.5)
+
+                ser.reset_input_buffer()
+                ser.write(":MEAS:CURR?\n".encode('ascii'))
+                await asyncio.sleep(0.5)
+                data = ser.readline().strip().decode('UTF-8')
+
+                x_meas = data.split(",")[0]
+                y_meas = data.split(",")[1]
+
+                xs = x_meas#f"{x:e}"
+                ys = y_meas#f"{y:e}"
                 point = [timestamp, xs, ys]
 
                 if save_mode == "batch":
@@ -135,6 +204,8 @@ async def websocket_endpoint(ws: WebSocket):
 
             # 計測終了通知
             running = False
+            if ser is not None:
+                ser.write(":OUTP:STATE 0\n".encode('ascii'))
             if save_mode == "batch" and data_buffer:
                 save_csv(data_buffer)
             await ws.send_json({"status": "done"})

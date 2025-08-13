@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>サイン波表示</title>
+    <title>keithley 2400 I-V CHAR MEAS</title>
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
     <style>
         #progressBar {
@@ -28,7 +28,9 @@
     </style>
 </head>
 <body>
-<h1>サイン波表示</h1>
+<h1>keithley 2400 I-V CHAR MEAS</h1>
+<p>copyright 2025 cherry-tech</p>
+<button id="init_btn" onclick="init()">初期化</button>
 <button id="start_btn" onclick="start()">開始</button>
 <button id="stop_btn" onclick="stop()">停止</button>
 <button id="clear_btn" onclick="clearData()">クリア</button>
@@ -73,6 +75,10 @@ function connectWS() {
     };
     ws.onmessage = (event) => {
         const msg = JSON.parse(event.data);
+        if (msg.status === "init") {
+            document.getElementById("statusMsg").innerText = msg.idn;
+            return;
+        }
         if (msg.status === "done") {
             document.getElementById("statusMsg").innerText = "測定終了";
             document.getElementById("progressFill").style.width = "100%";
@@ -99,6 +105,9 @@ function connectWS() {
     };
 }
 
+function init() {
+    fetch("http://127.0.0.1:8000/init", {method: "POST"});
+}
 function start() {
     Plotly.newPlot('chart', [{x: [], y: [], mode: 'lines'}]);
     xData = []; yData = [];
