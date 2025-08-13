@@ -4,12 +4,39 @@
     <meta charset="utf-8">
     <title>サイン波表示</title>
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        #progressBar {
+            width: 600px;
+            height: 20px;
+            border: 1px solid #000;
+            background-color: #eee;
+            margin: 5px 0;
+        }
+        #progressFill {
+            height: 100%;
+            width: 0%;
+            background-color: #4caf50;
+        }
+        table {
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        table, th, td {
+            border: 1px solid black;
+            padding: 4px;
+        }
+    </style>
 </head>
 <body>
 <h1>サイン波表示</h1>
 <button onclick="start()">開始</button>
 <button onclick="stop()">停止</button>
 <button onclick="clearData()">クリア</button>
+<br>
+<label>開始値: <input type="number" id="x_start" value="0"></label>
+<label>終了値: <input type="number" id="x_end" value="10"></label>
+<button onclick="setRange()">範囲設定</button>
+<br>
 <label>ステップ:
     <input type="number" id="step" value="0.1" step="0.1">
     <button onclick="setStep()">送信</button>
@@ -21,13 +48,22 @@
         <option value="realtime">逐次保存</option>
     </select>
 </label>
+
+<div id="progressBar"><div id="progressFill"></div></div>
+<div id="statusMsg"></div>
+
 <div id="chart" style="width:600px;height:400px;"></div>
+
+<h3>測定条件</h3>
+<table id="conditionsTable">
+    <tr><th>開始値</th><th>終了値</th><th>ステップ</th><th>保存モード</th></tr>
+    <tr><td id="condStart"></td><td id="condEnd"></td><td id="condStep"></td><td id="condSave"></td></tr>
+</table>
 
 <script>
 let ws;
-let xData = [], yData = [], timeData = [];
+let xData = [], yData = [];
 
-// 接続
 function connectWS() {
     ws = new WebSocket("ws://127.0.0.1:8000/ws");
     ws.onopen = () => console.log("WebSocket接続成功");
@@ -36,23 +72,35 @@ function connectWS() {
         setTimeout(connectWS, 1000);
     };
     ws.onmessage = (event) => {
-        const point = JSON.parse(event.data);
-        timeData.push(point.time);
-        xData.push(point.x);
-        yData.push(point.y);
-        Plotly.newPlot('chart', [{
-            x: xData,
-            y: yData,
-            mode: 'lines'
-        }], {
-            title: 'サイン波',
-            xaxis: { title: 'x' },
-            yaxis: { title: 'y' }
-        });
+        const msg = JSON.parse(event.data);
+        if (msg.status === "done") {
+            document.getElementById("statusMsg").innerText = "測定終了";
+            document.getElementById("progressFill").style.width = "100%";
+            return;
+        }
+        if (msg.status === "running") {
+            document.getElementById("statusMsg").innerText = "";
+            xData.push(msg.x);
+            yData.push(msg.y);
+
+            // 軽量化: extendTraces
+            Plotly.extendTraces('chart', {y: [[msg.y]], x: [[msg.x]]}, [0]);
+            document.getElementById("progressFill").style.width = (msg.progress * 100) + "%";
+
+            // 測定条件更新
+            const cond = msg.conditions;
+            document.getElementById("condStart").innerText = cond.x_start;
+            document.getElementById("condEnd").innerText = cond.x_end;
+            document.getElementById("condStep").innerText = cond.step;
+            document.getElementById("condSave").innerText = cond.save_mode;
+        }
     };
 }
 
 function start() {
+    Plotly.newPlot('chart', [{x: [], y: [], mode: 'lines'}]);
+    xData = []; yData = [];
+    document.getElementById("progressFill").style.width = "0%";
     fetch("http://127.0.0.1:8000/start", {method: "POST"});
 }
 
@@ -65,16 +113,19 @@ function setStep() {
     fetch(`http://127.0.0.1:8000/set_step/${val}`, {method: "POST"});
 }
 
+function setRange() {
+    const startVal = document.getElementById("x_start").value;
+    const endVal = document.getElementById("x_end").value;
+    fetch(`http://127.0.0.1:8000/set_range/${startVal}/${endVal}`, {method: "POST"});
+}
+
 function clearData() {
     xData = [];
     yData = [];
-    timeData = [];
     fetch("http://127.0.0.1:8000/clear_data", {method: "POST"});
-    Plotly.newPlot('chart', [{
-        x: [],
-        y: [],
-        mode: 'lines'
-    }]);
+    Plotly.newPlot('chart', [{x: [], y: [], mode: 'lines'}]);
+    document.getElementById("progressFill").style.width = "0%";
+    document.getElementById("statusMsg").innerText = "";
 }
 
 function setSaveMode() {
@@ -82,7 +133,6 @@ function setSaveMode() {
     fetch(`http://127.0.0.1:8000/set_save_mode/${mode}`, {method: "POST"});
 }
 
-// 初回接続
 connectWS();
 </script>
 </body>
