@@ -9,21 +9,35 @@
 <h1>サイン波表示</h1>
 <button onclick="start()">開始</button>
 <button onclick="stop()">停止</button>
+<button onclick="clearData()">クリア</button>
 <label>ステップ:
     <input type="number" id="step" value="0.1" step="0.1">
     <button onclick="setStep()">送信</button>
+</label>
+<br>
+<label>保存モード:
+    <select id="saveMode" onchange="setSaveMode()">
+        <option value="batch">一括保存</option>
+        <option value="realtime">逐次保存</option>
+    </select>
 </label>
 <div id="chart" style="width:600px;height:400px;"></div>
 
 <script>
 let ws;
-let xData = [], yData = [];
+let xData = [], yData = [], timeData = [];
 
-// WebSocket接続
+// 接続
 function connectWS() {
     ws = new WebSocket("ws://127.0.0.1:8000/ws");
+    ws.onopen = () => console.log("WebSocket接続成功");
+    ws.onclose = () => {
+        console.log("WebSocket切断。再接続します...");
+        setTimeout(connectWS, 1000);
+    };
     ws.onmessage = (event) => {
         const point = JSON.parse(event.data);
+        timeData.push(point.time);
         xData.push(point.x);
         yData.push(point.y);
         Plotly.newPlot('chart', [{
@@ -33,7 +47,7 @@ function connectWS() {
         }], {
             title: 'サイン波',
             xaxis: { title: 'x' },
-            yaxis: { title: 'y', range: [-1.2, 1.2] }
+            yaxis: { title: 'y' }
         });
     };
 }
@@ -51,7 +65,24 @@ function setStep() {
     fetch(`http://127.0.0.1:8000/set_step/${val}`, {method: "POST"});
 }
 
-// ページ読み込み時に接続
+function clearData() {
+    xData = [];
+    yData = [];
+    timeData = [];
+    fetch("http://127.0.0.1:8000/clear_data", {method: "POST"});
+    Plotly.newPlot('chart', [{
+        x: [],
+        y: [],
+        mode: 'lines'
+    }]);
+}
+
+function setSaveMode() {
+    const mode = document.getElementById("saveMode").value;
+    fetch(`http://127.0.0.1:8000/set_save_mode/${mode}`, {method: "POST"});
+}
+
+// 初回接続
 connectWS();
 </script>
 </body>
