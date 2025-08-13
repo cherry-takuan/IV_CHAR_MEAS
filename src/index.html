@@ -149,6 +149,17 @@
             </select>
         </label>
     </fieldset>
+
+    <!-- 描画モード設定 -->
+    <fieldset>
+        <legend><i class="fa-solid fa-layer-group"></i> 描画モード</legend>
+        <label>
+            <select id="drawMode">
+                <option value="overwrite">通常モード</option>
+                <option value="overlay">重ね書きモード</option>
+            </select>
+        </label>
+    </fieldset>
 </div>
 
 <!-- プログレスバー -->
@@ -166,7 +177,8 @@
 
 <script>
 let ws;
-let xData = [], yData = [];
+let allTraces = [];
+let currentTraceIndex = -1;
 let voltageLimitValue = null;
 let currentLimitValue = null;
 let showVoltageLimit = false;
@@ -184,8 +196,8 @@ function connectWS() {
 
         if (msg.status === "running") {
             setUILocked_run(true);
-            xData.push(parseFloat(msg.x));
-            yData.push(parseFloat(msg.y));
+            allTraces[currentTraceIndex].x.push(parseFloat(msg.x));
+            allTraces[currentTraceIndex].y.push(parseFloat(msg.y));
             drawChart();
             document.getElementById("progressFill").style.width = (msg.progress * 100) + "%";
             const cond = msg.conditions;
@@ -202,12 +214,11 @@ function connectWS() {
             setUILocked_run(false);
 
             const thresholdRatio = parseFloat(document.getElementById("limitThreshold").value) / 100;
-
             if (voltageLimitValue !== null) {
-                showVoltageLimit = xData.some(v => v >= voltageLimitValue * thresholdRatio);
+                showVoltageLimit = allTraces[currentTraceIndex].x.some(v => v >= voltageLimitValue * thresholdRatio);
             }
             if (currentLimitValue !== null) {
-                showCurrentLimit = yData.some(v => v >= currentLimitValue * thresholdRatio);
+                showCurrentLimit = allTraces[currentTraceIndex].y.some(v => v >= currentLimitValue * thresholdRatio);
             }
             drawChart();
         }
@@ -215,13 +226,18 @@ function connectWS() {
 }
 
 function drawChart() {
-    const traces = [
-        { x: xData, y: yData, mode: 'lines', name: 'I-V', line: {color: '#00bfff'} }
-    ];
+    const traces = allTraces.map(trace => ({
+        x: trace.x,
+        y: trace.y,
+        mode: 'lines',
+        name: trace.name,
+        line: { color: trace.color }
+    }));
+
     if (showVoltageLimit && voltageLimitValue !== null) {
         traces.push({
             x: [voltageLimitValue, voltageLimitValue],
-            y: [Math.min(...yData, 0), Math.max(...yData, 1)],
+            y: [Math.min(...traces.flatMap(t=>t.y), 0), Math.max(...traces.flatMap(t=>t.y), 1)],
             mode: 'lines',
             line: { color: 'red', dash: 'dash' },
             name: '電圧制限'
@@ -229,41 +245,59 @@ function drawChart() {
     }
     if (showCurrentLimit && currentLimitValue !== null) {
         traces.push({
-            x: [Math.min(...xData, 0), Math.max(...xData, 1)],
+            x: [Math.min(...traces.flatMap(t=>t.x), 0), Math.max(...traces.flatMap(t=>t.x), 1)],
             y: [currentLimitValue, currentLimitValue],
             mode: 'lines',
             line: { color: 'red', dash: 'dot' },
             name: '電流制限'
         });
     }
+
     Plotly.newPlot('chart', traces, {
         paper_bgcolor: '#1e1e1e',
         plot_bgcolor: '#1e1e1e',
-        font: {color: '#fff'},
-        margin: { t: 40, l: 50, r: 20, b: 50 }
+        font: {color: '#fff'}
     }, {responsive: true});
 }
 
-// 設定系関数
+function getRandomColor() {
+    const letters = '0123456789ABCDEF';
+    let color = '#';
+    for (let i=0; i<6; i++) {
+        color += letters[Math.floor(Math.random() * 16)];
+    }
+    return color;
+}
+
 function init() { fetch("http://127.0.0.1:8000/init", {method: "POST"}); }
+
 function start() {
-    xData = []; yData = [];
+    const mode = document.getElementById("drawMode").value;
+    if (mode === "overwrite") {
+        allTraces = [];
+    }
+    currentTraceIndex = allTraces.length;
+    allTraces.push({x: [], y: [], name: `Run ${allTraces.length+1}`, color: getRandomColor()});
+
     showVoltageLimit = false;
     showCurrentLimit = false;
     voltageLimitValue = parseFloat(document.getElementById("voltageLimit").value) || null;
     currentLimitValue = parseFloat(document.getElementById("currentLimit").value) || null;
     document.getElementById("progressFill").style.width = "0%";
+
     fetch("http://127.0.0.1:8000/start", { method: "POST" });
     drawChart();
 }
+
 function stop() { fetch("http://127.0.0.1:8000/stop", {method: "POST"}); }
+
 function clearData() {
-    xData = []; yData = [];
-    fetch("http://127.0.0.1:8000/clear_data", {method: "POST"});
+    allTraces = [];
     drawChart();
     document.getElementById("progressFill").style.width = "0%";
     document.getElementById("statusMsg").innerText = "";
 }
+
 function setStep() {
     const val = document.getElementById("step").value;
     fetch(`http://127.0.0.1:8000/set_step/${val}`, {method: "POST"});
